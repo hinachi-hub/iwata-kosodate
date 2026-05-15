@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>磐田市 子育て支援センター イベント確認ツール</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --green-dark: #2A5C2A;
+    --green-mid: #4A8C4A;
+    --green-light: #EAF3DE;
+    --green-pale: #F4FAF0;
+    --blue-dark: #185FA5;
+    --blue-light: #E6F1FB;
+    --gray: #888780;
+    --gray-light: #F1EFE8;
+    --orange: #D97706;
+    --orange-light: #FAEEDA;
+    --red-light: #FAECE7;
+    --red-dark: #4A1B0C;
+    --text: #1A1A18;
+    --text-sub: #6B6B67;
+    --border: #E0DDD6;
+    --bg: #FAFAF7;
+    --card-bg: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  header {
+    background: var(--green-dark);
+    color: white;
+    padding: 20px 24px 16px;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    margin-bottom: 4px;
+  }
+  header p {
+    font-size: 12px;
+    opacity: 0.75;
+  }
+  .main { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+
+  .date-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .date-bar label {
+    font-size: 14px;
+    color: var(--text-sub);
+    white-space: nowrap;
+    font-weight: 500;
+  }
+  .date-bar input[type=date] {
+    flex: 1;
+    min-width: 160px;
+    font-family: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 8px 12px;
+    outline: none;
+    background: var(--bg);
+  }
+  .date-bar input[type=date]:focus {
+    border-color: var(--green-mid);
+  }
+
+  .summary-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+  }
+  .sum-card {
+    flex: 1;
+    min-width: 90px;
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 12px;
+    text-align: center;
+  }
+  .sum-num { font-size: 28px; font-weight: 700; }
+  .sum-lbl { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+  .num-event { color: var(--green-dark); }
+  .num-open  { color: var(--blue-dark); }
+  .num-closed{ color: var(--gray); }
+
+  .section { margin-bottom: 24px; }
+  .section-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text-sub);
+    margin-bottom: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .section-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+  .dot-event { background: var(--green-dark); }
+  .dot-open  { background: var(--blue-dark); }
+  .dot-closed{ background: var(--gray); }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 10px;
+  }
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+  .card-top { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    letter-spacing: 0.04em;
+    flex-shrink: 0;
+  }
+  .badge-event { background: var(--green-light); color: var(--green-dark); }
+  .badge-open  { background: var(--blue-light);  color: var(--blue-dark); }
+  .badge-closed{ background: var(--gray-light);  color: var(--gray); }
+  .card-name { font-size: 15px; font-weight: 700; color: var(--text); }
+  .card-location { font-size: 11px; color: var(--text-sub); margin-bottom: 10px; }
+
+  .event-list { display: flex; flex-direction: column; gap: 8px; }
+  .event-item {}
+  .event-name-row { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; margin-bottom: 2px; }
+  .event-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .tag {
+    font-size: 10px;
+    padding: 1px 6px;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .tag-reserve { background: var(--orange-light); color: var(--orange); }
+  .tag-warn    { background: var(--red-light);    color: var(--red-dark); }
+  .event-detail { font-size: 12px; color: var(--text-sub); line-height: 1.5; }
+
+  .daily-box {
+    margin-top: 10px;
+    padding-top: 10px;
+    border-top: 1px dashed var(--border);
+  }
+  .daily-label {
+    font-size: 11px;
+    color: var(--text-sub);
+    font-weight: 500;
+    margin-bottom: 4px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .daily-label::before {
+    content: "↻";
+    font-size: 12px;
+    color: var(--green-mid);
+  }
+  .daily-name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .daily-detail { font-size: 11px; color: var(--text-sub); line-height: 1.5; }
+
+  .pdf-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--blue-dark);
+    text-decoration: none;
+    margin-top: 10px;
+    padding: 4px 8px;
+    border: 1px solid var(--blue-light);
+    border-radius: 6px;
+    background: var(--blue-light);
+    width: fit-content;
+    transition: opacity 0.15s;
+  }
+  .pdf-link:hover { opacity: 0.75; }
+
+  .holiday-note {
+    background: #FFF8E6;
+    border: 1px solid #F0D080;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: #7A5C00;
+    margin-bottom: 16px;
+  }
+
+  .footer-note {
+    font-size: 11px;
+    color: var(--text-sub);
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    line-height: 1.7;
+  }
+
+  @media (max-width: 480px) {
+    header h1 { font-size: 16px; }
+    .cards { grid-template-columns: 1fr; }
+    .sum-num { font-size: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🌿 磐田市 子育て支援センター イベント確認</h1>
+  <p>2026年5月号おたより掲載情報 ｜ 日付を選ぶとその日の情報が表示されます</p>
+</header>
+
+<div class="main">
+  <div class="date-bar">
+    <label for="pick">📅 日付を選択</label>
+    <input type="date" id="pick" value="2026-05-15" min="2026-05-01" max="2026-05-31">
+  </div>
+  <div id="out"></div>
+</div>
+
+<script>
+const BASE = "https://www.city.iwata.shizuoka.jp/_res/projects/default_project/_page_/001/001/754/";
+
+const CENTERS = [
+  {
+    id:"aiai", name:"あいあい", location:"豊岡中央交流センター内",
+    pdf: BASE+"R8.05aiai.pdf",
+    openDays:[2,3,4,5,6],
+    daily:[{name:"おいでおいで ばあっ！",time:"毎日 11:20〜",note:"ふれあい遊び・体操・絵本の読み聞かせ"}],
+    events:{
+      "2026-05-01":[{name:"こどもの日おたのしみ会",time:"11:00〜",note:"かぶと折り・こいのぼりで遊ぶ"}],
+      "2026-05-09":[{name:"おはなし会（ひらけごまさん）",time:"11:10〜11:40",note:"地域ボランティアによる読み聞かせ"}],
+      "2026-05-14":[{name:"赤ちゃんいらっしゃい",time:"13:30〜14:30",note:"0歳児親子の交流会・ふれあい遊び",reserve:true}],
+      "2026-05-19":[
+        {name:"保健師相談日",time:"10:30〜11:30",note:"予約不要"},
+        {name:"0歳から楽しめるおはなし会",time:"10:45〜11:00",note:"豊岡図書館による読み聞かせ"}
+      ],
+      "2026-05-29":[{name:"はじめのいっぽ",time:"10:30〜11:00",note:"磐田市在住1歳未満の親子",reserve:true}]
+    }
+  },
+  {
+    id:"pokke", name:"ぽっけ", location:"子育てセンターとみがおか内",
+    pdf: BASE+"R8.05pokke.pdf",
+    openDays:[1,2,3,4,5,6],
+    closedDates:["2026-05-30"],
+    daily:[{name:"片付け・体操",time:"11:45〜 / 15:45〜",note:""}],
+    events:{
+      "2026-05-11":[{name:"身体測定",time:"9:00〜11:00"},{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-05-13":[{name:"リズム",time:"開館時間内"}],
+      "2026-05-14":[{name:"看護師Q&A「うんちについて」",time:"10:00〜"}],
+      "2026-05-18":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
+      "2026-05-20":[{name:"リズム",time:"開館時間内"}],
+      "2026-05-21":[{name:"つくってあそぼう",time:"開館時間内",note:"春の飾りを作る"}],
+      "2026-05-25":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
+      "2026-05-26":[{name:"身体測定",time:"9:00〜11:00"}],
+      "2026-05-27":[{name:"リズム",time:"開館時間内"}],
+      "2026-05-29":[{name:"ヤマキ接骨院 戸塚先生のお話「靴の選び方」",time:"10:00〜10:30",note:"1〜3歳対象・限定10組",reserve:true}]
+    }
+  },
+  {
+    id:"nikkoniko", name:"にっこにこ", location:"総合健康福祉会館内",
+    pdf: BASE+"R8.05nikkoniko.pdf",
+    openDays:[1,2,3,4,5],
+    daily:[{name:"にっこにこ ぽん",time:"毎日 10:30〜 / 14:30〜",note:"ふれあい遊び・絵本の読み聞かせ。5月生まれのお誕生会も"}],
+    events:{
+      "2026-05-07":[{name:"午前休館",time:"9:00〜12:00",warn:true}],
+      "2026-05-22":[{name:"はじめのいっぽ（貸し切り）",time:"13:00〜14:30",note:"貸し切りのため一般利用不可",reserve:true,warn:true}],
+      "2026-05-25":[{name:"終日貸し切り",time:"9:00〜15:00",note:"一般利用不可",warn:true}]
+    }
+  },
+  {
+    id:"angel", name:"エンジェル", location:"こうのとり保育園内",
+    pdf: BASE+"R8.05angel.pdf",
+    openDays:[1,2,3,4],
+    daily:[{name:"あそぼうエンジェル",time:"毎日 11:00〜",note:"体操・季節の遊び・わらべうた・絵本"}],
+    events:{
+      "2026-05-12":[{name:"保健師相談日・計測",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-05-13":[{name:"園庭あそび",time:"9:45〜10:30"}],
+      "2026-05-14":[{name:"園庭あそび",time:"9:45〜10:30"}],
+      "2026-05-19":[{name:"園庭あそび",time:"9:45〜10:30"}],
+      "2026-05-20":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",note:"生後1ヶ月頃から・10組",reserve:true}],
+      "2026-05-21":[{name:"エンジェルリトミック",time:"10:00〜11:10（2部制）",note:"芳川礼子講師・各10組",reserve:true}],
+      "2026-05-25":[{name:"ハイハイヨチヨチかけっこよーいドン！＆誕生会",time:"10:00〜",reserve:true}],
+      "2026-05-27":[{name:"園庭あそび",time:"9:45〜10:30"}],
+      "2026-05-28":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",reserve:true}]
+    }
+  },
+  {
+    id:"nobinobi", name:"のびのび", location:"急患センター内",
+    pdf: BASE+"R8.05nobinobi.pdf",
+    openDays:[0,1,2,4,5,6],
+    closedDates:["2026-05-21","2026-05-28"],
+    daily:[],
+    events:{
+      "2026-05-12":[{name:"あかちゃんと一緒「離乳食期に大切にしたいこと」",time:"10:00〜10:50",note:"10組",reserve:true}],
+      "2026-05-13":[
+        {name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"},
+        {name:"2歳7ヶ月〜3歳1ヶ月 集まれ！交流会",time:"10:00〜10:50",note:"10組",reserve:true}
+      ],
+      "2026-05-15":[{name:"あにまるポケット",time:"詳細は直接確認"}],
+      "2026-05-27":[{name:"であいのひろば（南交流センター）",time:"10:00〜11:30"}],
+      "2026-05-29":[
+        {name:"ぴぽぱ（午前貸し切り）",time:"午前貸し切り・一般開放は14:30〜",warn:true},
+        {name:"はじめのいっぽ",time:"13:30〜",note:"磐田市在住1歳未満",reserve:true}
+      ]
+    }
+  },
+  {
+    id:"honobono", name:"ほのぼの", location:"子育てセンターみなみしま内",
+    pdf: BASE+"R8.05honobono.pdf",
+    openDays:[1,2,3,4,5],
+    closedDates:["2026-05-02","2026-05-26"],
+    daily:[],
+    events:{
+      "2026-05-12":[{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"},{name:"健康相談日・身体計測",time:"開館時間内"}],
+      "2026-05-13":[{name:"手足型アート",time:"開館時間内",note:"「きんぎょがにげた」テーマ"}],
+      "2026-05-14":[{name:"手足型アート",time:"開館時間内"}],
+      "2026-05-15":[{name:"手足型アート",time:"開館時間内",note:"「きんぎょがにげた」テーマのカレンダー作り"}],
+      "2026-05-21":[{name:"誕生会",time:"10:30〜",note:"5月生まれのお祝い"}],
+      "2026-05-22":[{name:"食育・芋の苗植え",time:"10:00〜",reserve:true}],
+      "2026-05-29":[{name:"みんなでエクササイズ",time:"10:00〜",note:"村松美どり講師・赤ちゃんから参加可",reserve:true}]
+    }
+  },
+  {
+    id:"huwatto", name:"ふわっと", location:"福田こども園内",
+    pdf: BASE+"R8.05huwatto.pdf",
+    openDays:[1,2,3,4,5],
+    daily:[{name:"ふわっとタイム",time:"毎日 11:25〜 / 15:40〜",note:"体操・親子ふれあい遊び・絵本の読み聞かせ"}],
+    events:{
+      "2026-05-01":[{name:"こどもの日の遊び",time:"11:15〜",note:"体を動かす遊び＋工作"}],
+      "2026-05-19":[{name:"わらべうたあそび",time:"11:15〜 / 15:30〜",note:"スキンシップを楽しむ"}],
+      "2026-05-25":[{name:"避難訓練（地震）"}],
+      "2026-05-29":[
+        {name:"はじめのいっぽ",time:"13:30〜",note:"磐田市在住1歳未満",reserve:true},
+        {name:"あかちゃんこしょこしょこしょ",time:"13:30〜14:30",note:"1歳未満赤ちゃんとのふれあい遊び"}
+      ]
+    }
+  },
+  {
+    id:"kodomonoie", name:"こどもの家", location:"竜洋交流センター内",
+    pdf: BASE+"R8.05kodomonoie.pdf",
+    openDays:[2,3,4,5,6],
+    daily:[{name:"ひまわりっこ",time:"火〜土 11:05〜11:30",note:"親子ふれあい遊び・体操・絵本の読み聞かせ"}],
+    events:{
+      "2026-05-13":[{name:"幼児身体計測",time:"9:00〜11:00"},{name:"保健師相談日",time:"9:30〜10:30",note:"予約不要"}],
+      "2026-05-19":[{name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満",reserve:true}]
+    }
+  },
+  {
+    id:"touch", name:"たっち", location:"磐田市新貝",
+    pdf: BASE+"R8.05touch.pdf",
+    openDays:[2,3,4,5,6],
+    daily:[{name:"たっちへゴー",time:"毎日 11:00〜 / 15:00〜",note:"体操・ふれあい遊び・絵本の読み聞かせ。5月生まれのお誕生会も"}],
+    events:{
+      "2026-05-08":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜14:30",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
+      "2026-05-15":[{name:"午後休館（環境整備）",time:"午後",note:"午後は休館",warn:true}],
+      "2026-05-20":[{name:"読み聞かせ"}],
+      "2026-05-26":[{name:"保健師相談日",time:"9:45〜10:45",note:"予約不要"}]
+    }
+  },
+  {
+    id:"michiroom", name:"みちるーむ", location:"龍の子幼稚園内",
+    pdf: BASE+"R8.05michiroom.pdf",
+    openDays:[1,2,3,4,5],
+    daily:[{name:"にぎにぎぎゅっと",time:"毎日 11:10〜",note:"ふれあい遊び・絵本・リズム遊び"}],
+    events:{
+      "2026-05-14":[{name:"みんなであそぼう",time:"10:00〜11:00",note:"生後5〜6ヶ月から・予約不要"}],
+      "2026-05-18":[
+        {name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true},
+        {name:"保健師相談日",time:"11:00〜12:00",note:"予約不要"}
+      ],
+      "2026-05-19":[{name:"あかちゃんとあそぼう（わらべ）",time:"10:00〜11:00",note:"1歳〜",reserve:true}],
+      "2026-05-21":[{name:"みんなであそぼう",time:"10:00〜11:00",note:"生後5〜6ヶ月から・予約不要"}],
+      "2026-05-22":[{name:"あかちゃんとあそぼう（わらべ）",time:"10:00〜11:00",note:"1歳〜",reserve:true}],
+      "2026-05-25":[{name:"あかちゃんとあそぼう（だっこ）",time:"10:00〜11:00",note:"4ヶ月〜",reserve:true}],
+      "2026-05-26":[{name:"あかちゃんとあそぼう（だっこ）",time:"10:00〜11:00",note:"4ヶ月〜",reserve:true}],
+      "2026-05-28":[{name:"みんなであそぼう",time:"10:00〜11:00",note:"生後5〜6ヶ月から・予約不要"}]
+    }
+  },
+  {
+    id:"kodomonomori", name:"こどもの森", location:"城之崎",
+    pdf: BASE+"R8.05kodomonomori.pdf",
+    openDays:[1,2,4],
+    daily:[{name:"もりもりタイム",time:"毎日 11:30〜11:50",note:"手遊び・読み聞かせ・歌・植栽・野菜となかよし など日替わり"}],
+    events:{
+      "2026-05-07":[{name:"栄養相談",time:"10:00〜14:00",note:"予約不要"}],
+      "2026-05-11":[{name:"離乳食相談",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-05-12":[{name:"保健師相談日",time:"14:30〜15:30",note:"予約不要"}],
+      "2026-05-14":[{name:"簡単ストレッチ",time:"もりもりタイム内"}],
+      "2026-05-18":[{name:"離乳食相談",time:"10:00〜11:00"}],
+      "2026-05-19":[{name:"わくわくキッチン「野菜の形状（人参）」",time:"11:00〜11:40",note:"2歳以上体験希望はスタッフへ"}],
+      "2026-05-25":[{name:"離乳食相談",time:"10:00〜14:00",note:"ランチタイムに食べながら相談可"}],
+      "2026-05-26":[{name:"赤ちゃんひろば・足形アート",time:"14:00〜15:00",note:"0〜12ヶ月児",reserve:true}]
+    }
+  },
+  {
+    id:"tokotoko", name:"とことこ", location:"磐田北こども園内",
+    pdf: BASE+"R8.05tokotoko.pdf",
+    openDays:[1,2,3,4,5],
+    daily:[],
+    events:{
+      "2026-05-12":[{name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true}],
+      "2026-05-19":[
+        {name:"ザとことこタイム（ダンス・リズム遊び）",time:"10:30〜"},
+        {name:"はじめのいっぽ",time:"13:30〜",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}
+      ],
+      "2026-05-26":[
+        {name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true},
+        {name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}
+      ]
+    }
+  }
+];
+
+const HOLIDAYS = ["2026-05-03","2026-05-04","2026-05-05","2026-05-06"];
+const DAY_LABELS = ["日","月","火","水","木","金","土"];
+
+function isOpen(c, dateStr) {
+  if (c.closedDates && c.closedDates.includes(dateStr)) return false;
+  return c.openDays.includes(new Date(dateStr).getDay());
+}
+function getEvents(c, dateStr) { return (c.events && c.events[dateStr]) || []; }
+
+function renderEventHtml(events) {
+  return `<div class="event-list">${events.map(e => {
+    const detail = [e.time, e.note].filter(Boolean).join(" ・ ");
+    return `<div class="event-item">
+      <div class="event-name-row">
+        <span class="event-name">${e.name}</span>
+        ${e.reserve ? `<span class="tag tag-reserve">要予約</span>` : ""}
+        ${e.warn    ? `<span class="tag tag-warn">注意</span>` : ""}
+      </div>
+      ${detail ? `<div class="event-detail">${detail}</div>` : ""}
+    </div>`;
+  }).join("")}</div>`;
+}
+
+function renderDailyHtml(daily) {
+  if (!daily || !daily.length) return "";
+  const items = daily.map(d => {
+    const detail = [d.time, d.note].filter(Boolean).join(" ・ ");
+    return `<div>
+      <div class="daily-name">${d.name}</div>
+      ${detail ? `<div class="daily-detail">${detail}</div>` : ""}
+    </div>`;
+  }).join("");
+  return `<div class="daily-box">
+    <div class="daily-label">毎日のプログラム</div>
+    ${items}
+  </div>`;
+}
+
+function renderPdfLink(pdf) {
+  if (!pdf) return "";
+  return `<a class="pdf-link" href="${pdf}" target="_blank" rel="noopener">📄 5月号おたより（PDF）</a>`;
+}
+
+function render() {
+  const dateStr = document.getElementById("pick").value;
+  const out = document.getElementById("out");
+  if (!dateStr) { out.innerHTML = ""; return; }
+
+  const dow = new Date(dateStr).getDay();
+  const isHol = HOLIDAYS.includes(dateStr) || dow === 0;
+  const withEvents = [], openOnly = [], closed = [];
+
+  for (const c of CENTERS) {
+    const open = isOpen(c, dateStr) && !isHol;
+    const events = getEvents(c, dateStr);
+    if (!open) closed.push(c);
+    else if (events.length) withEvents.push({c, events});
+    else openOnly.push(c);
+  }
+
+  const [y,m,d] = dateStr.split("-");
+  const parts = [];
+  parts.push(`<p style="font-size:16px;font-weight:700;color:var(--text);margin-bottom:16px">${parseInt(y)}年${parseInt(m)}月${parseInt(d)}日（${DAY_LABELS[dow]}）</p>`);
+
+  if (isHol) parts.push(`<div class="holiday-note">🎌 この日は祝日のため、ほぼすべてのセンターが休館です。</div>`);
+
+  parts.push(`<div class="summary-row">
+    <div class="sum-card"><div class="sum-num num-event">${withEvents.length}</div><div class="sum-lbl">イベントあり</div></div>
+    <div class="sum-card"><div class="sum-num num-open">${openOnly.length}</div><div class="sum-lbl">通常開館</div></div>
+    <div class="sum-card"><div class="sum-num num-closed">${closed.length}</div><div class="sum-lbl">休館</div></div>
+  </div>`);
+
+  if (withEvents.length) {
+    parts.push(`<div class="section">
+      <div class="section-head"><span class="section-dot dot-event"></span>イベントあり</div>
+      <div class="cards">`);
+    for (const {c, events} of withEvents) {
+      parts.push(`<div class="card">
+        <div class="card-top"><span class="badge badge-event">イベント</span><span class="card-name">${c.name}</span></div>
+        <div class="card-location">${c.location}</div>
+        ${renderEventHtml(events)}
+        ${renderDailyHtml(c.daily)}
+        ${renderPdfLink(c.pdf)}
+      </div>`);
+    }
+    parts.push(`</div></div>`);
+  }
+
+  if (openOnly.length) {
+    parts.push(`<div class="section">
+      <div class="section-head"><span class="section-dot dot-open"></span>通常開館（特別イベントなし）</div>
+      <div class="cards">`);
+    for (const c of openOnly) {
+      parts.push(`<div class="card">
+        <div class="card-top"><span class="badge badge-open">開館</span><span class="card-name">${c.name}</span></div>
+        <div class="card-location">${c.location}</div>
+        ${renderDailyHtml(c.daily)}
+        ${renderPdfLink(c.pdf)}
+      </div>`);
+    }
+    parts.push(`</div></div>`);
+  }
+
+  if (closed.length) {
+    parts.push(`<div class="section">
+      <div class="section-head"><span class="section-dot dot-closed"></span>休館</div>
+      <div class="cards">`);
+    for (const c of closed) {
+      parts.push(`<div class="card">
+        <div class="card-top"><span class="badge badge-closed">休館</span><span class="card-name">${c.name}</span></div>
+        <div class="card-location">${c.location}</div>
+        ${renderPdfLink(c.pdf)}
+      </div>`);
+    }
+    parts.push(`</div></div>`);
+  }
+
+  parts.push(`<div class="footer-note">
+    ※ 天候・行事等により変更・中止の場合があります。各センターに直接ご確認ください。<br>
+    ※ データは2026年5月号おたよりに基づきます。
+  </div>`);
+
+  out.innerHTML = parts.join("");
+}
+
+document.getElementById("pick").addEventListener("change", render);
+render();
+</script>
+</body>
+</html>
