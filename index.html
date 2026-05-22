@@ -324,6 +324,7 @@
 <header>
   <h1>🌿 磐田市 子育て支援センター イベント確認</h1>
   <p>2026年5〜6月号おたより・広報いわた掲載情報 ｜ 日付を選ぶとその日の情報が表示されます</p>
+  <p style="margin-top:6px;font-size:12px;opacity:0.75">📎 公式情報：<a href="https://www.city.iwata.shizuoka.jp/1006547/1006548/1001754.html" target="_blank" rel="noopener" style="color:white;text-underline-offset:3px">磐田市 子育て支援センターのページ</a>　／　<a href="https://www.city.iwata.shizuoka.jp/shiseijouhou/kouhou_kouchou/kouhou_iwata/index.html" target="_blank" rel="noopener" style="color:white;text-underline-offset:3px">広報いわた</a></p>
 </header>
 
 <div class="main">
@@ -361,6 +362,8 @@ const CENTERS = [
   {
     id:"aiai", name:"あいあい", location:"豊岡中央交流センター内",
     pdf: BASE+"R8.05aiai.pdf",
+    tel:"0539-63-0047",
+    hours:"火〜土 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[2,3,4,5,6],
     daily:[{name:"おいでおいで ばあっ！",time:"毎日 11:20〜",note:"ふれあい遊び・体操・絵本の読み聞かせ"}],
     events:{
@@ -381,6 +384,8 @@ const CENTERS = [
   {
     id:"pokke", name:"ぽっけ", location:"子育てセンターとみがおか内",
     pdf: BASE+"R8.05pokke.pdf",
+    tel:"0538-35-2546",
+    hours:"月〜金 9:00〜12:00 / 13:00〜16:00、土 9:00〜12:00（日祝休）",
     openDays:[1,2,3,4,5,6],
     closedDates:["2026-05-30"],
     daily:[{name:"片付け・体操",time:"11:45〜 / 15:45〜",note:""}],
@@ -400,8 +405,10 @@ const CENTERS = [
   {
     id:"nikkoniko", name:"にっこにこ", location:"総合健康福祉会館内",
     pdf: BASE+"R8.05nikkoniko.pdf",
+    tel:"0538-31-0115",
+    hours:"月〜金 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
-    daily:[{name:"にっこにこ ぽん",time:"毎日 11:30〜 / 15:45〜",note:"ふれあい遊び・絵本の読み聞かせ。5月生まれのお誕生会も"}],
+    daily:[{name:"にっこにこ ぽん",time:"毎日 10:30〜 / 14:30〜",note:"ふれあい遊び・絵本の読み聞かせ。5月生まれのお誕生会も"}],
     events:{
       "2026-05-07":[{name:"午前休館",time:"9:00〜12:00",warn:true}],
       "2026-05-22":[{name:"はじめのいっぽ（貸し切り）",time:"13:00〜14:30",note:"貸し切りのため一般利用不可",reserve:true,warn:true}],
@@ -415,6 +422,8 @@ const CENTERS = [
   {
     id:"angel", name:"エンジェル", location:"こうのとり保育園内",
     pdf: BASE+"R8.05angel.pdf",
+    tel:"0538-32-4732",
+    hours:"月〜木 8:30〜13:30（日祝休）",
     openDays:[1,2,3,4],
     daily:[{name:"あそぼうエンジェル",time:"毎日 11:00〜",note:"体操・季節の遊び・わらべうた・絵本"}],
     events:{
@@ -439,6 +448,8 @@ const CENTERS = [
   {
     id:"nobinobi", name:"のびのび", location:"急患センター内",
     pdf: BASE+"R8.05nobinobi.pdf",
+    tel:"0538-37-4102",
+    hours:"日〜水・金〜土 9:30〜17:30（木休）",
     openDays:[0,1,2,3,5,6],
     closedDates:["2026-05-21","2026-05-28"],
     daily:[
@@ -467,6 +478,8 @@ const CENTERS = [
   {
     id:"honobono", name:"ほのぼの", location:"子育てセンターみなみしま内",
     pdf: BASE+"R8.05honobono.pdf",
+    tel:"0538-55-6171",
+    hours:"月〜金 9:00〜12:00 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
     closedDates:["2026-05-02","2026-05-26"],
     daily:[{name:"ほのぼのタイム",time:"毎日 10:15〜",note:"ふれあい遊び・絵本の読み聞かせ"}],
@@ -490,6 +503,8 @@ const CENTERS = [
   {
     id:"huwatto", name:"ふわっと", location:"福田こども園内",
     pdf: BASE+"R8.05huwatto.pdf",
+    tel:"0538-58-1566",
+    hours:"月〜金 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
     daily:[{name:"ふわっとタイム",time:"毎日 11:25〜 / 15:40〜",note:"体操・親子ふれあい遊び・絵本の読み聞かせ"}],
     events:{
@@ -512,6 +527,8 @@ const CENTERS = [
   {
     id:"kodomonoie", name:"こどもの家", location:"竜洋交流センター内",
     pdf: BASE+"R8.05kodomonoie.pdf",
+    tel:"0538-66-9000",
+    hours:"火〜土 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[2,3,4,5,6],
     daily:[
       {name:"ひまわりっこ",time:"火〜土 11:05〜11:30",note:"親子ふれあい遊び・体操・絵本の読み聞かせ"},
@@ -527,6 +544,8 @@ const CENTERS = [
   {
     id:"touch", name:"たっち", location:"磐田市新貝",
     pdf: BASE+"R8.05touch.pdf",
+    tel:"0538-30-6110",
+    hours:"火〜土 9:00〜16:00（日祝休）",
     openDays:[2,3,4,5,6],
     daily:[
       {name:"たっちへゴー",time:"毎日 11:00〜 / 15:00〜",note:"体操・ふれあい遊び・絵本の読み聞かせ。5月生まれのお誕生会も"},
@@ -546,6 +565,8 @@ const CENTERS = [
   {
     id:"michiroom", name:"みちるーむ", location:"龍の子幼稚園内",
     pdf: BASE+"R8.05michiroom.pdf",
+    tel:"0538-35-5144",
+    hours:"月〜金 8:30〜14:30（日祝休）",
     openDays:[1,2,3,4,5],
     daily:[
       {name:"にぎにぎぎゅっと",time:"毎日 11:10〜",note:"ふれあい遊び・絵本・リズム遊び"},
@@ -573,6 +594,8 @@ const CENTERS = [
   {
     id:"kodomonomori", name:"こどもの森", location:"城之崎",
     pdf: BASE+"R8.05kodomonomori.pdf",
+    tel:"0538-36-1311",
+    hours:"月・火・木 10:00〜15:30（日祝休）",
     openDays:[1,2,4],
     daily:[
       {name:"もりもりタイム",time:"毎日 11:30〜11:50",note:"手遊び・読み聞かせ・歌・植栽・野菜となかよし など日替わり"},
@@ -594,6 +617,8 @@ const CENTERS = [
   {
     id:"tokotoko", name:"とことこ", location:"磐田北こども園内",
     pdf: BASE+"R8.05tokotoko.pdf",
+    tel:"0538-37-1888",
+    hours:"月〜金 9:00〜12:45 / 14:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
     daily:[{name:"とことこタイム",time:"毎日 11:20〜 / 15:45〜",note:"ふれあい遊び・体操・絵本の読み聞かせ"}],
     events:{
@@ -614,6 +639,7 @@ const CENTERS = [
   {
     id:"haguhagu", name:"はぐはぐ（移動子育て支援センター）", location:"各交流センター",
     pdf: null,
+    hours:"開催日により異なります（各会場の開催時間を確認）",
     openDays:[4,5],
     daily:[
       {name:"はぐはぐタイム",time:"毎回 11:00〜",note:"ふれあい遊び・絵本の読み聞かせ"},
@@ -675,6 +701,14 @@ function renderDailyHtml(daily) {
   </div>`;
 }
 
+function renderHoursHtml(hours) {
+  if (!hours) return "";
+  return `<div style="display:flex;align-items:baseline;gap:5px;margin-bottom:4px">
+    <span style="font-size:11px;color:var(--text-sub);white-space:nowrap">🕐 開館時間</span>
+    <span style="font-size:12px;color:var(--text)">${hours}</span>
+  </div>`;
+}
+
 function renderPdfLink(pdf) {
   if (!pdf) return "";
   return `<a class="pdf-link" href="${pdf}" target="_blank" rel="noopener">📄 5月号おたより（PDF）</a>`;
@@ -717,6 +751,7 @@ function render() {
       parts.push(`<div class="card">
         <div class="card-top"><span class="badge badge-event">イベント</span><span class="card-name">${c.name}</span></div>
         <div class="card-location">${c.location}</div>
+        ${renderHoursHtml(c.hours)}
         ${renderEventHtml(events)}
         ${renderDailyHtml(c.daily)}
         ${renderPdfLink(c.pdf)}
@@ -733,6 +768,7 @@ function render() {
       parts.push(`<div class="card">
         <div class="card-top"><span class="badge badge-open">開館</span><span class="card-name">${c.name}</span></div>
         <div class="card-location">${c.location}</div>
+        ${renderHoursHtml(c.hours)}
         ${renderDailyHtml(c.daily)}
         ${renderPdfLink(c.pdf)}
       </div>`);
@@ -748,6 +784,7 @@ function render() {
       parts.push(`<div class="card">
         <div class="card-top"><span class="badge badge-closed">休館</span><span class="card-name">${c.name}</span></div>
         <div class="card-location">${c.location}</div>
+        ${renderHoursHtml(c.hours)}
         ${renderPdfLink(c.pdf)}
       </div>`);
     }
