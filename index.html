@@ -1,4 +1,52 @@
 <!DOCTYPE html>
+<!--
+═══════════════════════════════════════════════════════════════
+ 磐田市 子育て支援センター イベント確認ツール — 月次更新チェックリスト
+ （Claudeへ：新しい月号への更新を頼まれたら、このリストに沿って作業すること）
+═══════════════════════════════════════════════════════════════
+
+【毎月の更新手順】
+1. おたより一覧ページを取得してPDFのURLを確認
+   https://www.city.iwata.shizuoka.jp/1006547/1006548/1001754.html#otayori6
+   ※ファイル名の月表記に注意（例: R8.05 / R8.06 は0埋め、R8.7 は0なし。月により揺れる）
+2. 全12センターのおたよりPDFを読み、当月のイベントをevents:{}に追加
+   （あいあい・ぽっけ・にっこにこ・エンジェル・のびのび・ほのぼの・
+    ふわっと・こどもの家・たっち・みちるーむ・こどもの森・とことこ）
+3. 広報いわた（毎月22-23ページ付近に翌月の子育て情報）も突き合わせて補完
+   ※おたよりと広報で矛盾がある場合はおたよりを優先し、ユーザーに確認する
+4. 各センターの pdfs:{} に当月号のURLを追加（月番号→URL）し、
+   フォールバック用の pdf: フィールドも当月号に更新
+5. スクリプト冒頭の DATA_MONTHS / DATE_MAX を更新
+6. HOLIDAYS に不足している祝日・年末年始休館がないか確認
+7. 構文チェック（node -e でscriptブロックをnew Function）と
+   重複キーチェック（同一センター内で日付キーの重複がないか）を必ず実行
+
+【毎月必ず入れる定例イベント】
+- エンジェル：「翌月リトミックの予約受付開始日」（おたよりに記載あり）
+- 各センターのランチタイム・毎日のプログラムは daily:[] で管理（引き継ぐ）
+- 「はじめのいっぽ」は要予約一覧から自動除外される（startsWith判定）
+
+【データ構造の注意】
+- events:{} 内で同じ日付キーを2回書くと後の値が前を上書きして消える。
+  同日複数イベントは必ず1つのキーの配列にまとめること
+- openDays: 0=日,1=月,...,6=土。openDays:[] のセンター（はぐはぐ）は
+  eventsに記載のある日だけ開館扱い
+- closedDates:[] で臨時休館日を指定できる（環境整備・臨時閉館など）
+- extraOpenDates:[] で通常休みの曜日でも臨時開館する日を指定できる
+  （例：みちるーむの土曜プールイベントなど）。isOpen()内で
+  closedDates→extraOpenDates→通常openDaysの優先順で判定される
+- openOnHolidays:true のセンター（のびのび）は祝日でも開館扱いになる
+- ぽっけの saturdayNote のような曜日限定の注意書きフィールドあり
+- にこっとの定期イベントは第n曜日で自動計算（getNikottoEvents）。
+  不定期イベントだけ NIKOTTO.events に書く
+
+【未確認・保留事項】
+- 年末年始（12/29〜1/3頃）の各センター休館日はおたより確認後に
+  closedDates へ追加する（のびのびは祝日開館: openOnHolidays:true 実装済み）
+- こどもの森・とことこはPDFのカレンダーがテキスト抽出で崩れやすいため、
+  曜日と開館日（月火木 or 月〜金）から逆算して日付を特定する必要がある
+═══════════════════════════════════════════════════════════════
+-->
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
@@ -323,7 +371,7 @@
 
 <header>
   <h1>🌿 磐田市 子育て支援センター イベント確認</h1>
-  <p>2026年5〜7月号おたより掲載情報 ｜ 日付を選ぶとその日の情報が表示されます</p>
+  <p id="subtitle">日付を選ぶとその日の情報が表示されます</p>
   <p style="margin-top:6px;font-size:12px;opacity:0.75">📎 公式情報：<a href="https://www.city.iwata.shizuoka.jp/1006547/1006548/1001754.html#otayori6" target="_blank" rel="noopener" style="color:white;text-underline-offset:3px">磐田市 子育て支援センターのページ</a>　／　<a href="https://www.city.iwata.shizuoka.jp/shiseijouhou/kouhou_kouchou/kouhou_iwata/index.html" target="_blank" rel="noopener" style="color:white;text-underline-offset:3px">広報いわた</a></p>
 </header>
 
@@ -337,7 +385,7 @@
   <div id="tab-calendar" class="tab-panel active">
     <div class="date-bar">
       <label for="pick">📅 日付を選択</label>
-      <input type="date" id="pick" min="2026-05-01" max="2027-03-31">
+      <input type="date" id="pick">
     </div>
     <div id="out"></div>
   </div>
@@ -356,13 +404,19 @@
 </div>
 
 <script>
+// ═══ 月次更新時はここだけ変更 ═══
+const DATA_MONTHS = "2026年5〜8月号";   // ヘッダー・フッターの表記
+const DATE_MIN = "2026-05-01";          // 日付選択の下限
+const DATE_MAX = "2027-03-31";          // 日付選択の上限
+// ═══════════════════════════════
+
 const BASE = "https://www.city.iwata.shizuoka.jp/_res/projects/default_project/_page_/001/001/754/";
 
 const CENTERS = [
   {
     id:"aiai", name:"あいあい", location:"豊岡中央交流センター内",
-    pdfs:{5:BASE+"R8.05aiai.pdf",6:BASE+"R8.06aiai.pdf",7:BASE+"R8.7aiai.pdf"},
-    pdf: BASE+"R8.7aiai.pdf",
+    pdfs:{5:BASE+"R8.05aiai.pdf",6:BASE+"R8.06aiai.pdf",7:BASE+"R8.7aiai.pdf",8:BASE+"R8.8aiai.pdf"},
+    pdf: BASE+"R8.8aiai.pdf",
     tel:"0539-63-0047",
     hours:"火〜土 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[2,3,4,5,6],
@@ -392,18 +446,27 @@ const CENTERS = [
       "2026-07-28":[
         {name:"保健師相談日",time:"10:30〜11:30",note:"予約不要"},
         {name:"0歳から楽しめるおはなし会",time:"10:45〜11:00",note:"豊岡図書館による読み聞かせ"}
-      ]
+      ],
+      "2026-08-08":[{name:"ひらけごまさんのおはなし会",time:"11:10〜11:40",note:"地域ボランティアによる読み聞かせ"}],
+      "2026-08-21":[
+        {name:"保健師相談日",time:"9:30〜10:30",note:"予約不要"},
+        {name:"はじめのいっぽ",time:"10:30〜",note:"磐田市在住1歳未満の親子",reserve:true}
+      ],
+      "2026-08-26":[
+        {name:"赤ちゃん計測とおはなし会",time:"10:00〜",note:"健康増進課×豊岡図書館×あいあい・ベジチェック測定＆野菜のおはなし・予約不要"}
+      ],
+      "2026-08-27":[{name:"環境整備のため午後休館",time:"午後",warn:true}]
     }
   },
   {
     id:"pokke", name:"ぽっけ", location:"子育てセンターとみがおか内",
-    pdfs:{5:BASE+"R8.05pokke.pdf",6:BASE+"R8.06pokke.pdf",7:BASE+"R8.7pokke.pdf"},
-    pdf: BASE+"R8.7pokke.pdf",
+    pdfs:{5:BASE+"R8.05pokke.pdf",6:BASE+"R8.06pokke.pdf",7:BASE+"R8.7pokke.pdf",8:BASE+"R8.8pokke.pdf"},
+    pdf: BASE+"R8.8pokke.pdf",
     tel:"0538-35-2546",
     hours:"月〜金 9:00〜12:00 / 13:00〜16:00、土 9:00〜12:00（日祝休）",
     saturdayNote:"土曜日は園庭開放のみ（9:00〜12:00）",
     openDays:[1,2,3,4,5,6],
-    closedDates:["2026-05-30"],
+    closedDates:["2026-05-30","2026-08-25"],
     daily:[{name:"片付け・体操",time:"11:45〜 / 15:45〜",note:""}],
     events:{
       "2026-05-11":[{name:"身体測定",time:"9:00〜11:00"},{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}],
@@ -430,8 +493,11 @@ const CENTERS = [
       "2026-06-24":[{name:"リズム",time:"10:00〜"}],
       "2026-06-26":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
       "2026-06-29":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
-      "2026-07-06":[{name:"七夕のお楽しみ",time:"午前のみ",note:"短冊に願い事・七夕飾りを作って笹につける"}],
-      "2026-07-06":[{name:"おいでおいであかちゃん",time:"10:30〜11:30",note:"1歳未満・予約不要"}],
+      "2026-07-06":[
+        {name:"絵本の読み聞かせ",time:"10:00〜"},
+        {name:"おいでおいであかちゃん",time:"10:30〜11:30",note:"1歳未満・予約不要"}
+      ],
+      "2026-07-07":[{name:"七夕のお楽しみ",time:"午前のみ",note:"短冊に願い事・七夕飾りを作って笹につける"}],
       "2026-07-08":[{name:"リズム",time:"10:00〜"}],
       "2026-07-13":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
       "2026-07-14":[{name:"身体測定",time:"9:00〜11:00"},{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}],
@@ -441,17 +507,35 @@ const CENTERS = [
       "2026-07-24":[{name:"ことばの相談日",time:"9:00〜11:30",note:"言語聴覚士・要予約",reserve:true}],
       "2026-07-27":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
       "2026-07-28":[{name:"身体測定",time:"9:00〜11:00"}],
-      "2026-07-31":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}]
+      "2026-07-31":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
+      "2026-08-04":[
+        {name:"身体測定",time:"9:00〜11:00"},
+        {name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}
+      ],
+      "2026-08-05":[{name:"リズム",time:"10:00〜"}],
+      "2026-08-06":[{name:"看護師Q&A「夏のスキンケアについて」",time:"10:00〜"}],
+      "2026-08-17":[{name:"絵本の読み聞かせ",time:"10:00〜"}],
+      "2026-08-18":[{name:"身体測定",time:"9:00〜11:00"}],
+      "2026-08-19":[{name:"リズム",time:"10:00〜"}],
+      "2026-08-20":[{name:"つくってあそぼう「スタンプ遊び」",time:"開館時間内"}],
+      "2026-08-21":[{name:"はじめのいっぽ（貸し切り）",time:"午後",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
+      "2026-08-24":[
+        {name:"絵本の読み聞かせ",time:"10:00〜"},
+        {name:"おいでおいであかちゃん",time:"10:30〜11:30",note:"1歳未満・予約不要"}
+      ],
+      "2026-08-25":[{name:"臨時閉館（空調設備修理のため）",time:"終日",warn:true}],
+      "2026-08-26":[{name:"リズム",time:"10:00〜"}],
+      "2026-08-31":[{name:"絵本の読み聞かせ",time:"10:00〜"}]
     }
   },
   {
     id:"nikkoniko", name:"にっこにこ", location:"総合健康福祉会館内",
-    pdfs:{5:BASE+"R8.05nikkoniko.pdf",6:BASE+"R8.06nikkoniko.pdf",7:BASE+"R8.7nikkoniko.pdf"},
-    pdf: BASE+"R8.7nikkoniko.pdf",
+    pdfs:{5:BASE+"R8.05nikkoniko.pdf",6:BASE+"R8.06nikkoniko.pdf",7:BASE+"R8.7nikkoniko.pdf",8:BASE+"R8.8nikkoniko.pdf"},
+    pdf: BASE+"R8.8nikkoniko.pdf",
     tel:"0538-31-0115",
     hours:"月〜金 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
-    daily:[{name:"にっこにこ ぽん",time:"毎日 10:30〜 / 14:30〜",note:"ふれあい遊び・絵本の読み聞かせ。7月生まれのお誕生会も"}],
+    daily:[{name:"にっこにこ ぽん",time:"毎日 10:30〜 / 14:30〜",note:"ふれあい遊び・絵本の読み聞かせ。その月生まれのお誕生会も"}],
     events:{
       "2026-05-07":[{name:"午前休館",time:"9:00〜12:00",warn:true}],
       "2026-05-22":[{name:"はじめのいっぽ（貸し切り）",time:"13:00〜14:30",note:"貸し切りのため一般利用不可",reserve:true,warn:true}],
@@ -471,13 +555,25 @@ const CENTERS = [
       "2026-07-21":[{name:"ベジチェック測定",time:"10:30〜11:30",note:"保健師・栄養士による健康ミニ講座"}],
       "2026-07-27":[{name:"にこフォト",time:"9:00〜15:00",note:"一般利用不可",warn:true}],
       "2026-07-28":[{name:"ベビーヨガ（前編）",time:"10:30〜",note:"首が座ってからハイハイ頃・13組",reserve:true}],
-      "2026-07-31":[{name:"午後休館",time:"13:00〜16:00",warn:true}]
+      "2026-07-31":[{name:"午後休館",time:"13:00〜16:00",warn:true}],
+      "2026-08-07":[
+        {name:"はじめのいっぽ（貸し切り）",time:"13:30〜14:30",note:"貸し切りのため一般利用不可",reserve:true,warn:true},
+        {name:"図書館の方のおはなし会",time:"10:30〜10:50",note:"中央図書館の司書さんが読み聞かせ"}
+      ],
+      "2026-08-12":[{name:"はじめのいっぽ（貸し切り）＋にこパパおもちゃ作り（貸し切り）",time:"13:30〜",note:"パパ同士の交流会・要予約6組",reserve:true,warn:true}],
+      "2026-08-17":[{name:"はじめのいっぽ（貸し切り）",time:"13:00〜14:30",note:"貸し切りのため一般利用不可",reserve:true,warn:true}],
+      "2026-08-18":[{name:"にこママ",time:"13:30〜",note:"0歳児親子の交流会・8組",reserve:true}],
+      "2026-08-24":[{name:"終日貸し切り",time:"9:00〜15:00",note:"一般利用不可",warn:true}],
+      "2026-08-25":[
+        {name:"保健師相談日",time:"10:30〜11:00",note:"予約不要"},
+        {name:"ベビーヨガ（後編）",time:"詳細はおたよりにて",note:"ハイハイ頃〜歩き始めた頃・13組",reserve:true}
+      ]
     }
   },
   {
     id:"angel", name:"エンジェル", location:"こうのとり保育園内",
-    pdfs:{5:BASE+"R8.05angel.pdf",6:BASE+"R8.06angel.pdf",7:BASE+"R8.7angel.pdf"},
-    pdf: BASE+"R8.7angel.pdf",
+    pdfs:{5:BASE+"R8.05angel.pdf",6:BASE+"R8.06angel.pdf",7:BASE+"R8.7angel.pdf",8:BASE+"R8.8angel.pdf"},
+    pdf: BASE+"R8.8angel.pdf",
     tel:"0538-32-4732",
     hours:"月〜木 8:30〜13:30（日祝休）",
     openDays:[1,2,3,4],
@@ -507,15 +603,24 @@ const CENTERS = [
       "2026-07-16":[{name:"エンジェルリトミック",time:"10:00〜（2部制）",note:"芳川礼子講師・各10組",reserve:true}],
       "2026-07-21":[{name:"ハイハイヨチヨチかけっこよーいドン！＆誕生会",time:"10:00〜",reserve:true}],
       "2026-07-28":[{name:"8/20エンジェルリトミック 予約受付開始",time:"",note:"この日から予約受付開始",reserve:true}],
-      "2026-07-30":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",reserve:true}]
+      "2026-07-30":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",reserve:true}],
+      "2026-08-18":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",note:"生後1ヶ月頃から・10組",reserve:true}],
+      "2026-08-19":[{name:"ハイハイヨチヨチかけっこよーいドン！＆誕生会",time:"10:00〜",reserve:true}],
+      "2026-08-20":[{name:"エンジェルリトミック",time:"10:00〜（2部制）",note:"芳川礼子講師・各10組",reserve:true}],
+      "2026-08-25":[
+        {name:"保健師相談日・計測",time:"10:00〜11:00",note:"予約不要"},
+        {name:"9/17エンジェルリトミック 予約受付開始",time:"",note:"この日から予約受付開始",reserve:true}
+      ],
+      "2026-08-27":[{name:"わらべうたベビーマッサージ",time:"10:00〜10:30",reserve:true}]
     }
   },
   {
     id:"nobinobi", name:"のびのび", location:"急患センター内",
-    pdfs:{5:BASE+"R8.05nobinobi.pdf",6:BASE+"R8.06nobinobi.pdf",7:BASE+"R8.7nobinobi.pdf"},
-    pdf: BASE+"R8.7nobinobi.pdf",
+    openOnHolidays:true,
+    pdfs:{5:BASE+"R8.05nobinobi.pdf",6:BASE+"R8.06nobinobi.pdf",7:BASE+"R8.7nobinobi.pdf",8:BASE+"R8.8nobinobi.pdf"},
+    pdf: BASE+"R8.8nobinobi.pdf",
     tel:"0538-37-4102",
-    hours:"日〜水・金〜土 9:30〜17:30（木休）",
+    hours:"毎日 9:30〜17:30（木曜休・祝日も開館）",
     openDays:[0,1,2,3,5,6],
     closedDates:["2026-05-21","2026-05-28"],
     daily:[
@@ -559,13 +664,27 @@ const CENTERS = [
       "2026-07-22":[{name:"絵本の世界で遊んじゃおう！（2歳3ヶ月〜3歳2ヶ月）",time:"10:00〜",note:"先着6組",reserve:true}],
       "2026-07-24":[
         {name:"はじめのいっぽ",time:"13:30〜14:30",note:"磐田市在住1歳未満",reserve:true}
-      ]
+      ],
+      "2026-08-03":[{name:"あかちゃんと一緒「就園前に大事にしたいこと」",time:"10:00〜10:50",note:"10組",reserve:true}],
+      "2026-08-04":[{name:"お盆スペシャル パパとGO！",time:"詳細はおたよりにて",note:"パパと夏を感じる遊び・ママ同伴もOK"}],
+      "2026-08-07":[{name:"栄養相談",time:"11:15〜",note:""}],
+      "2026-08-08":[{name:"プレパパママイベントのため12:30まで休館",time:"〜12:30",warn:true}],
+      "2026-08-12":[
+        {name:"お盆スペシャル パパとGO！",time:"9:45〜10:50"},
+        {name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}
+      ],
+      "2026-08-21":[{name:"サーキット",time:"詳細はおたよりにて"}],
+      "2026-08-28":[
+        {name:"ぴぽぱ（午前貸し切り）",time:"午前貸し切り・一般開放は13:30〜",warn:true},
+        {name:"はじめのいっぽ",time:"13:30〜14:30",note:"磐田市在住1歳未満",reserve:true}
+      ],
+      "2026-08-29":[{name:"みんなSMILE in かるみあ（聖隷ぴゅあセンター磐田）",time:"9:45〜11:15",note:"土曜開催"}]
     }
   },
   {
     id:"honobono", name:"ほのぼの", location:"子育てセンターみなみしま内",
-    pdfs:{5:BASE+"R8.05honobono.pdf",6:BASE+"R8.06honobono.pdf",7:BASE+"R8.7honobono.pdf"},
-    pdf: BASE+"R8.7honobono.pdf",
+    pdfs:{5:BASE+"R8.05honobono.pdf",6:BASE+"R8.06honobono.pdf",7:BASE+"R8.7honobono.pdf",8:BASE+"R8.8honobono.pdf"},
+    pdf: BASE+"R8.8honobono.pdf",
     tel:"0538-55-6171",
     hours:"月〜金 9:00〜12:00 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
@@ -603,13 +722,23 @@ const CENTERS = [
       "2026-07-22":[{name:"みんなでエクササイズ",time:"10:00〜",note:"村松美どり講師・赤ちゃんから参加可",reserve:true}],
       "2026-07-28":[{name:"健康相談日",time:"開館時間内",note:"予約不要"}],
       "2026-07-29":[{name:"言葉の相談",time:"10:00〜",note:"言語聴覚士・個別相談あり",reserve:true}],
-      "2026-07-31":[{name:"誕生会",time:"10:30〜",note:"7月生まれのお祝い・フォトスポットあり"}]
+      "2026-07-31":[{name:"誕生会",time:"10:30〜",note:"7月生まれのお祝い・フォトスポットあり"}],
+      "2026-08-04":[
+        {name:"健康相談日・保健師相談日",time:"10:00〜11:00 / 開館時間内",note:"予約不要"},
+        {name:"はじめのいっぽ",time:"10:30〜11:00",note:"磐田市在住1歳未満",reserve:true}
+      ],
+      "2026-08-06":[{name:"製作あそび（夏祭り）",time:"開館時間内"}],
+      "2026-08-07":[{name:"製作あそび（夏祭り）",time:"開館時間内"}],
+      "2026-08-10":[{name:"水遊びお休み",time:"",note:"8/10(月)〜8/14(金)は水遊びお休み"}],
+      "2026-08-18":[{name:"リズム",time:"9:45〜",note:"0・1・2歳児と一緒に"}],
+      "2026-08-25":[{name:"健康相談日",time:"開館時間内",note:"予約不要"}],
+      "2026-08-28":[{name:"誕生会",time:"10:30〜",note:"8月生まれのお祝い・手形と歌のプレゼント・フォトスポットあり"}]
     }
   },
   {
     id:"huwatto", name:"ふわっと", location:"福田こども園内",
-    pdfs:{5:BASE+"R8.05huwatto.pdf",6:BASE+"R8.06huwatto.pdf",7:BASE+"R8.7huwatto.pdf"},
-    pdf: BASE+"R8.7huwatto.pdf",
+    pdfs:{5:BASE+"R8.05huwatto.pdf",6:BASE+"R8.06huwatto.pdf",7:BASE+"R8.7huwatto.pdf",8:BASE+"R8.8huwatto.pdf"},
+    pdf: BASE+"R8.8huwatto.pdf",
     tel:"0538-58-1566",
     hours:"月〜金 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
@@ -638,13 +767,22 @@ const CENTERS = [
         {name:"保健師相談日",time:"14:00〜15:00",note:"予約不要"},
         {name:"あかちゃんこしょこしょこしょ",time:"13:30〜",note:"1歳未満・ふれあい遊び・ママストレッチ・交流会"},
         {name:"はじめのいっぽ",time:"13:30〜",note:"磐田市在住1歳未満",reserve:true}
+      ],
+      "2026-08-04":[{name:"夏のおたのしみ会",time:"開館時間内",note:"8/4〜6の3日間・サーキット・フルーツ狩り・金魚すくい・虫取りなど",reserve:true}],
+      "2026-08-05":[{name:"夏のおたのしみ会",time:"開館時間内",note:"8/4〜6の3日間開催"}],
+      "2026-08-06":[{name:"夏のおたのしみ会",time:"開館時間内",note:"8/4〜6の3日間開催"}],
+      "2026-08-07":[{name:"水遊び・工作（なくなり次第終了）",time:"開館時間内"}],
+      "2026-08-25":[{name:"わらべうたあそび",time:"11:15〜 / 15:30〜"}],
+      "2026-08-28":[
+        {name:"保健師相談日",time:"14:00〜15:00",note:"予約不要"},
+        {name:"あかちゃんこしょこしょこしょ",time:"13:30〜14:30",note:"1歳未満・ふれあい遊び・ママストレッチ・交流会"}
       ]
     }
   },
   {
     id:"kodomonoie", name:"こどもの家", location:"竜洋交流センター内",
-    pdfs:{5:BASE+"R8.05kodomonoie.pdf",6:BASE+"R8.06kodomonoie.pdf",7:BASE+"R8.7kodomonoie.pdf"},
-    pdf: BASE+"R8.7kodomonoie.pdf",
+    pdfs:{5:BASE+"R8.05kodomonoie.pdf",6:BASE+"R8.06kodomonoie.pdf",7:BASE+"R8.7kodomonoie.pdf",8:BASE+"R8.8kodomonoie.pdf"},
+    pdf: BASE+"R8.8kodomonoie.pdf",
     tel:"0538-66-9000",
     hours:"火〜土 9:00〜11:45 / 13:00〜16:00（日祝休）",
     openDays:[2,3,4,5,6],
@@ -659,18 +797,24 @@ const CENTERS = [
       "2026-06-16":[{name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
       "2026-07-01":[{name:"幼児身体計測",time:"9:00〜11:00"},{name:"保健師相談日",time:"9:30〜10:30",note:"予約不要"}],
       "2026-07-07":[{name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
-      "2026-07-29":[{name:"大人の健康ミニ講座・ベジチェック測定",time:"10:00〜",note:"竜洋図書館の絵本の読み聞かせも・要予約",reserve:true}]
+      "2026-07-29":[{name:"大人の健康ミニ講座・ベジチェック測定",time:"10:00〜",note:"竜洋図書館の絵本の読み聞かせも・要予約",reserve:true}],
+      "2026-08-05":[
+        {name:"幼児身体計測",time:"9:00〜11:00"},
+        {name:"保健師相談日",time:"9:30〜10:30",note:"予約不要"}
+      ],
+      "2026-08-18":[{name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満",reserve:true}]
     }
   },
   {
     id:"touch", name:"たっち", location:"磐田市新貝",
-    pdfs:{5:BASE+"R8.05touch.pdf",6:BASE+"R8.06touch.pdf",7:BASE+"R8.7touch.pdf"},
-    pdf: BASE+"R8.7touch.pdf",
+    pdfs:{5:BASE+"R8.05touch.pdf",6:BASE+"R8.06touch.pdf",7:BASE+"R8.7touch.pdf",8:BASE+"R8.8touch.pdf"},
+    pdf: BASE+"R8.8touch.pdf",
     tel:"0538-30-6110",
-    hours:"火〜土 9:00〜16:00（日祝休）",
+    hours:"火〜土 9:00〜16:00（日祝休・月曜が祝日の翌火曜は休館）",
     openDays:[2,3,4,5,6],
+    closedDates:["2026-07-21"],
     daily:[
-      {name:"たっちへゴー",time:"毎日 11:00〜 / 15:00〜",note:"体操・ふれあい遊び・絵本の読み聞かせ。7月生まれのお誕生会も"},
+      {name:"たっちへゴー",time:"毎日 11:00〜 / 15:00〜",note:"体操・ふれあい遊び・絵本の読み聞かせ。その月生まれのお誕生会も"},
       {name:"ランチタイム",time:"11:45〜12:30",note:""}
     ],
     events:{
@@ -686,18 +830,22 @@ const CENTERS = [
       "2026-06-23":[{name:"保健師相談日",time:"9:45〜10:45",note:"予約不要"}],
       "2026-07-01":[{name:"楽しい読み聞かせ",time:"11:00〜"}],
       "2026-07-10":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜14:30",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
-      "2026-07-21":[{name:"振替休日のため休館",time:"",warn:true}],
       "2026-07-28":[{name:"保健師相談日",time:"9:45〜10:45",note:"予約不要"}],
-      "2026-07-29":[{name:"親子体操",time:"11:00〜11:30",note:"ヨガ教室講師・8組",reserve:true}]
+      "2026-07-29":[{name:"親子体操",time:"11:00〜11:30",note:"ヨガ教室講師・8組",reserve:true}],
+      "2026-08-05":[{name:"楽しい読み聞かせ",time:"11:00〜",note:"毎月1回"}],
+      "2026-08-14":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜14:30",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
+      "2026-08-25":[{name:"保健師相談日",time:"9:45〜10:45",note:"予約不要"}]
     }
   },
   {
     id:"michiroom", name:"みちるーむ", location:"龍の子幼稚園内",
-    pdfs:{5:BASE+"R8.05michiroom.pdf",6:BASE+"R8.06michiroom.pdf",7:BASE+"R8.7michiroom.pdf"},
-    pdf: BASE+"R8.7michiroom.pdf",
+    pdfs:{5:BASE+"R8.05michiroom.pdf",6:BASE+"R8.06michiroom.pdf",7:BASE+"R8.7michiroom.pdf",8:BASE+"R8.8michiroom.pdf"},
+    pdf: BASE+"R8.8michiroom.pdf",
     tel:"0538-35-5144",
-    hours:"月〜金 8:30〜14:30（日祝休）",
+    hours:"月〜金 8:30〜14:30（日祝休・臨時開館日あり）",
     openDays:[1,2,3,4,5],
+    closedDates:["2026-08-13"],
+    extraOpenDates:["2026-08-29"],
     daily:[
       {name:"にぎにぎぎゅっと",time:"毎日 11:10〜",note:"ふれあい遊び・絵本・リズム遊び"},
       {name:"ランチタイム",time:"11:20〜12:20",note:"室内は指定場所あり・お菓子・ジュース持ち込み不可"}
@@ -742,13 +890,27 @@ const CENTERS = [
       "2026-07-28":[{name:"ぺったんこ（手形・足形アート）",time:"期間中いつでも"}],
       "2026-07-29":[{name:"ぺったんこ（手形・足形アート）",time:"期間中いつでも"}],
       "2026-07-30":[{name:"あかちゃんとあそぼう（わらべ）",time:"10:00〜11:00",note:"1歳〜",reserve:true}],
-      "2026-07-31":[{name:"あかちゃんとあそぼう（だっこ）",time:"10:00〜11:00",note:"4ヶ月〜",reserve:true}]
+      "2026-07-31":[{name:"あかちゃんとあそぼう（だっこ）",time:"10:00〜11:00",note:"4ヶ月〜",reserve:true}],
+      "2026-08-13":[{name:"環境整備のため休館",time:"終日",warn:true}],
+      "2026-08-17":[
+        {name:"はじめのいっぽ",time:"10:00〜11:00",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true},
+        {name:"保健師相談日",time:"11:00〜12:00",note:"予約不要"}
+      ],
+      "2026-08-20":[{name:"ベビーマッサージ",time:"10:00〜11:00",note:"生後1ヶ月〜よちよち歩き・先着5組",reserve:true}],
+      "2026-08-21":[{name:"ぺったんこ（手形・足形アート）",time:"期間中いつでも"}],
+      "2026-08-24":[{name:"ぺったんこ（手形・足形アート）",time:"期間中いつでも"}],
+      "2026-08-25":[
+        {name:"あかちゃんとあそぼう（だっこ）",time:"10:00〜11:00",note:"4ヶ月〜",reserve:true},
+        {name:"ぺったんこ（手形・足形アート）",time:"期間中いつでも"}
+      ],
+      "2026-08-26":[{name:"あかちゃんとあそぼう（わらべ）",time:"10:00〜11:00",note:"1歳〜",reserve:true}],
+      "2026-08-29":[{name:"みんなおいで〜！！（プール・水遊び）",time:"9:30〜11:00",note:"平日来られない方向け・土曜開催"}]
     }
   },
   {
     id:"kodomonomori", name:"こどもの森", location:"城之崎",
-    pdfs:{5:BASE+"R8.05kodomonomori.pdf",6:BASE+"R8.06kodomonomori.pdf",7:BASE+"R8.7kodomonomori.pdf"},
-    pdf: BASE+"R8.7kodomonomori.pdf",
+    pdfs:{5:BASE+"R8.05kodomonomori.pdf",6:BASE+"R8.06kodomonomori.pdf",7:BASE+"R8.7kodomonomori.pdf",8:BASE+"R8.8kodomonomori.pdf"},
+    pdf: BASE+"R8.8kodomonomori.pdf",
     tel:"0538-36-1311",
     hours:"月・火・木 10:00〜15:30（日祝休）",
     openDays:[1,2,4],
@@ -781,24 +943,35 @@ const CENTERS = [
       "2026-06-29":[{name:"離乳食相談",time:"10:00〜14:00",note:"ランチタイムに食べながら相談可"}],
       "2026-06-30":[{name:"赤ちゃんひろば・足形アート",time:"14:00〜15:00",note:"0〜12ヶ月児",reserve:true}],
       "2026-07-06":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
-      "2026-07-07":[{name:"離乳食相談",time:"10:00〜11:00",note:"予約不要"}],
       "2026-07-09":[{name:"簡単ストレッチ「いい汗かいて気分スッキリ」",time:"もりもりタイム内"}],
       "2026-07-13":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
       "2026-07-14":[
         {name:"わくわくキッチン「野菜だし」",time:"11:00〜11:40",note:"2歳以上体験希望はスタッフへ"},
         {name:"保健師相談日",time:"14:30〜15:30",note:"予約不要"}
       ],
-      "2026-07-20":[{name:"海の日（休館）",time:"",warn:true}],
-      "2026-07-21":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-07-21":[{name:"離乳食相談",time:"10:00〜11:00",note:"予約不要"}],
       "2026-07-23":[{name:"栄養相談",time:"10:00〜14:00",note:"予約不要"}],
       "2026-07-27":[{name:"離乳食相談（毎週月曜・14時まで実施）",time:"10:00〜14:00",note:"予約不要"}],
-      "2026-07-28":[{name:"赤ちゃんひろば・足形アート",time:"14:00〜15:00",note:"0〜12ヶ月児",reserve:true}]
+      "2026-07-28":[{name:"赤ちゃんひろば・足形アート",time:"14:00〜15:00",note:"0〜12ヶ月児",reserve:true}],
+      "2026-08-03":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-08-04":[
+        {name:"はじめのいっぽ",time:"13:30〜14:30",note:"磐田市在住1歳未満",reserve:true},
+        {name:"保健師相談日",time:"14:30〜15:30",note:"予約不要"}
+      ],
+      "2026-08-06":[{name:"栄養相談",time:"10:00〜14:00",note:"予約不要"}],
+      "2026-08-10":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-08-13":[{name:"簡単ストレッチ「いい汗かいて気分スッキリ」",time:"もりもりタイム内"}],
+      "2026-08-17":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-08-18":[{name:"わくわくキッチン「野菜の取り方」",time:"11:00〜11:40",note:"2歳以上体験希望はスタッフへ"}],
+      "2026-08-24":[{name:"離乳食相談（毎週月曜）",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-08-25":[{name:"赤ちゃんひろば・足形アート",time:"14:00〜15:00",note:"0〜12ヶ月児",reserve:true}],
+      "2026-08-31":[{name:"離乳食相談（毎週月曜・14時まで実施）",time:"10:00〜14:00",note:"予約不要"}]
     }
   },
   {
     id:"tokotoko", name:"とことこ", location:"磐田北こども園内",
-    pdfs:{5:BASE+"R8.05tokotoko.pdf",6:BASE+"R8.06tokotoko.pdf",7:BASE+"R8.7tokotoko.pdf"},
-    pdf: BASE+"R8.7tokotoko.pdf",
+    pdfs:{5:BASE+"R8.05tokotoko.pdf",6:BASE+"R8.06tokotoko.pdf",7:BASE+"R8.7tokotoko.pdf",8:BASE+"R8.8tokotoko.pdf"},
+    pdf: BASE+"R8.8tokotoko.pdf",
     tel:"0538-37-1888",
     hours:"月〜金 9:00〜12:45 / 14:00〜16:00（日祝休）",
     openDays:[1,2,3,4,5],
@@ -822,7 +995,12 @@ const CENTERS = [
       "2026-07-08":[{name:"七夕とことこタイム＆ほっこりタイム",time:"9:30〜 / 14:15〜",note:"ほっこりタイムは要予約",reserve:true}],
       "2026-07-14":[{name:"はじめのいっぽ（貸し切り）",time:"13:30〜",note:"磐田市在住1歳未満・貸し切り",reserve:true,warn:true}],
       "2026-07-21":[{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}],
-      "2026-07-22":[{name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true}]
+      "2026-07-22":[{name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true}],
+      "2026-08-04":[{name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true}],
+      "2026-08-07":[{name:"とことこタイムレッツゴー",time:"10:00〜10:30",note:"ふれあい遊び・職員の楽しい出し物"}],
+      "2026-08-18":[{name:"保健師相談日",time:"10:00〜11:00",note:"予約不要"}],
+      "2026-08-25":[{name:"とことこタイムレッツゴー",time:"10:00〜10:30",note:"ふれあい遊び・職員の楽しい出し物"}],
+      "2026-08-26":[{name:"ほっこりタイム",time:"14:15〜",note:"腰痛体操など",reserve:true}]
     }
   },
   {
@@ -910,11 +1088,23 @@ const CENTERS = [
   }
 ];
 
-const HOLIDAYS = ["2026-05-03","2026-05-04","2026-05-05","2026-05-06","2026-07-20","2026-07-21"];
+// 祝日（2026-05〜2027-03の国民の祝日。年末年始の休館期間は各センターのおたより確認後にclosedDatesへ）
+const HOLIDAYS = [
+  "2026-05-03","2026-05-04","2026-05-05","2026-05-06", // GW
+  "2026-07-20",                                          // 海の日
+  "2026-08-11",                                          // 山の日
+  "2026-09-21","2026-09-22","2026-09-23",                // 敬老の日・国民の休日・秋分の日
+  "2026-10-12",                                          // スポーツの日
+  "2026-11-03","2026-11-23",                             // 文化の日・勤労感謝の日
+  "2027-01-01","2027-01-11",                             // 元日・成人の日
+  "2027-02-11","2027-02-23",                             // 建国記念の日・天皇誕生日
+  "2027-03-21","2027-03-22"                              // 春分の日・振替休日
+];
 const DAY_LABELS = ["日","月","火","水","木","金","土"];
 
 function isOpen(c, dateStr) {
   if (c.closedDates && c.closedDates.includes(dateStr)) return false;
+  if (c.extraOpenDates && c.extraOpenDates.includes(dateStr)) return true;
   if (c.openDays.length === 0) return !!(c.events && c.events[dateStr]);
   return c.openDays.includes(new Date(dateStr).getDay());
 }
@@ -978,11 +1168,10 @@ function render() {
 
   const dow = new Date(dateStr).getDay();
   const isHol = HOLIDAYS.includes(dateStr);
-  const isSunday = dow === 0;
   const withEvents = [], openOnly = [], closed = [];
 
   for (const c of CENTERS) {
-    const open = isOpen(c, dateStr) && !isHol;
+    const open = isOpen(c, dateStr) && (!isHol || c.openOnHolidays);
     const events = getEvents(c, dateStr);
     if (!open) closed.push(c);
     else if (events.length) withEvents.push({c, events});
@@ -1058,7 +1247,7 @@ function render() {
 
   parts.push(`<div class="footer-note">
     ※ 天候・行事等により変更・中止の場合があります。各センターに直接ご確認ください。<br>
-    ※ データは2026年5〜7月号おたよりに基づきます。
+    ※ データは${DATA_MONTHS}おたよりに基づきます。
   </div>`);
 
   // ── にこっとセクション ──
@@ -1116,105 +1305,23 @@ const NIKOTTO = {
   name:"にこっと（ひと・ほんの庭）",
   location:"磐田市上新屋304",
   url:"https://www.city.iwata.shizuoka.jp/event/kodomo_kosodate/1011930/index.html",
-  hours:"火〜日 9:30〜18:00（月曜休館）",
-  // 水曜・金曜の定期プログラム
+  hours:"火〜日 9:30〜18:00（月曜・第4木曜休館）",
+  // ── 定期プログラム（曜日・第n週で自動判定。個別の日付は下のeventsのみ） ──
   weeklyWednesday:{name:"おはなし会（0〜2歳）",time:"10:30〜10:45",note:"絵本の読み聞かせ・てあそび"},
+  asoboDay:{name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
+  joseiSoudan:{name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true},
+  shinrishi:{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"ワンポイント10:45〜、個別相談各20分・要予約",reserve:true},
+  eiyoushi:{name:"栄養士個別相談",time:"9:30〜12:00",note:"離乳食・幼児食のお悩み・1組20分・5組・要予約",reserve:true},
+  nikoha:{name:"にこっ歯相談",time:"10:00〜11:30",note:"歯科衛生士に相談・大人も可・要予約",reserve:true},
   weeklyWedFri:{name:"にこっとハローワーク",time:"13:30〜16:00",note:"職業相談・求人紹介（ハローワーク磐田と連携）"},
-  // 保健師相談日：毎週水曜（第3水曜除く）
   hokenshi:{name:"保健師相談日",time:"10:00〜11:45",note:"子育てのお悩みを保健師に相談（予約不要）"},
-  // 天体観測：毎週土曜夜（要予約・LINE）
   tentataikansoku:{name:"天体観測",time:"19:15〜（5〜9月）/ 18:30〜（10〜3月）",note:"要予約（磐田市公式LINE）・先着4組・各30分"},
+  // 栄養士・にこっ歯相談が第3木曜でない月（"YYYY-MM": 実施週）
+  nutritionNthOverride:{"2026-09":2,"2027-03":2},
+  // 臨時休館日（蔵書点検・年末年始など）
+  closedDates:["2026-12-30","2027-02-10"],
+  // 不定期の個別イベントのみここに記載
   events:{
-    // ── おはなし会 第2水曜：あそぼうDAY＋女性相談 ──
-    "2026-06-10":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-07-08":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-08-12":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-09-09":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-10-14":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-11-11":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2026-12-09":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2027-01-13":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    "2027-03-10":[
-      {name:"おはなし会（0〜2歳）あそぼうDAY",time:"10:30〜",note:"おはなし会の後にふれあい遊び"},
-      {name:"にこっと女性相談",time:"9:30〜12:30",note:"家庭問題・DV等・保育士あり・要予約・3組",reserve:true}
-    ],
-    // ── 第3水曜：心理士ワンポイント（要予約） ──
-    "2026-06-17":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"ワンポイント10:45〜、個別相談各20分・要予約",reserve:true}],
-    "2026-07-15":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2026-08-19":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2026-09-16":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2026-10-21":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2026-11-18":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2026-12-16":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2027-01-20":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2027-02-17":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    "2027-03-17":[{name:"心理士ワンポイントアドバイス＆個別相談",time:"9:30〜12:00",note:"要予約",reserve:true}],
-    // ── 毎月第3木曜：栄養士個別相談＋にこっ歯相談（要予約） ──
-    "2026-06-18":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"離乳食・幼児食のお悩み・1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"歯科衛生士に相談・大人も可・要予約",reserve:true}
-    ],
-    "2026-07-16":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2026-08-20":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2026-09-10":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2026-10-15":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2026-11-19":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2026-12-17":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2027-01-21":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2027-02-18":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    "2027-03-11":[
-      {name:"栄養士個別相談",time:"9:30〜12:00",note:"1組20分・5組・要予約",reserve:true},
-      {name:"にこっ歯相談",time:"10:00〜11:30",note:"要予約",reserve:true}
-    ],
-    // ── とことこわらべうたの会（金曜・要予約不要） ──
     "2026-06-26":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
     "2026-09-25":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
     "2026-10-23":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
@@ -1222,12 +1329,8 @@ const NIKOTTO = {
     "2027-01-22":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
     "2027-02-26":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
     "2027-03-26":[{name:"とことこわらべうたの会",time:"10:30〜10:45",note:"0〜3歳くらい・わらべうた・てあそび"}],
-    // ── 本とホンモノ昆虫教室（土曜・要予約・LINE） ──
     "2026-11-14":[{name:"本とホンモノ昆虫教室",time:"14:00〜15:00",note:"18組・要予約（磐田市公式LINE）",reserve:true}],
-    "2027-02-06":[{name:"本とホンモノ昆虫教室",time:"14:00〜15:00",note:"18組・要予約（磐田市公式LINE）",reserve:true}],
-    // ── 蔵書点検休館 ──
-    "2026-12-30":[],
-    "2027-02-10":[]
+    "2027-02-06":[{name:"本とホンモノ昆虫教室",time:"14:00〜15:00",note:"18組・要予約（磐田市公式LINE）",reserve:true}]
   }
 };
 
@@ -1249,28 +1352,36 @@ function getKonnichiwaStatus(dateStr) {
 
 function getNikottoEvents(dateStr) {
   const d = new Date(dateStr);
-  const dow = d.getDay(); // 0=日,1=月,...,6=土
-  // 月曜休館
+  const dow = d.getDay();               // 0=日,1=月,...,6=土
+  const nth = Math.ceil(d.getDate()/7); // その月の第何週目の同曜日か
+  const ym = dateStr.slice(0,7);
+
+  // 休館：月曜・第4木曜・臨時休館日
   if (dow === 1) return null;
-  // 特別日（空配列は休み扱い）
-  if (NIKOTTO.events[dateStr] !== undefined) {
-    if (NIKOTTO.events[dateStr].length === 0) return null;
-    // 特別イベントに定期プログラムを追加
-    const extras = [];
-    if (dow === 3) extras.push(NIKOTTO.weeklyWednesday, NIKOTTO.hokenshi, NIKOTTO.weeklyWedFri);
-    if (dow === 5) extras.push(NIKOTTO.weeklyWedFri);
-    if (dow === 6) extras.push(NIKOTTO.tentataikansoku);
-    return [...NIKOTTO.events[dateStr], ...extras];
+  if (dow === 4 && nth === 4) return null;
+  if (NIKOTTO.closedDates.includes(dateStr)) return null;
+
+  const list = [];
+  if (dow === 3) { // 水曜
+    // 第2水曜はあそぼうDAY＋女性相談、それ以外は通常おはなし会
+    if (nth === 2) list.push(NIKOTTO.asoboDay, NIKOTTO.joseiSoudan);
+    else list.push(NIKOTTO.weeklyWednesday);
+    // 第3水曜は心理士相談（保健師相談は第3水曜のみ休み）
+    if (nth === 3) list.push(NIKOTTO.shinrishi);
+    else list.push(NIKOTTO.hokenshi);
+    list.push(NIKOTTO.weeklyWedFri);
   }
-  // 水曜：おはなし会＋保健師相談＋ハローワーク
-  if (dow === 3) return [NIKOTTO.weeklyWednesday, NIKOTTO.hokenshi, NIKOTTO.weeklyWedFri];
-  // 金曜：ハローワーク
-  if (dow === 5) return [NIKOTTO.weeklyWedFri];
-  // 土曜：天体観測
-  if (dow === 6) return [NIKOTTO.tentataikansoku];
-  // 火・木・日：開館中（特別イベントなし）
-  return [];
+  if (dow === 4) { // 木曜：栄養士・にこっ歯相談（原則第3、例外月はoverride）
+    const targetNth = NIKOTTO.nutritionNthOverride[ym] || 3;
+    if (nth === targetNth) list.push(NIKOTTO.eiyoushi, NIKOTTO.nikoha);
+  }
+  if (dow === 5) list.push(NIKOTTO.weeklyWedFri); // 金曜
+  if (dow === 6) list.push(NIKOTTO.tentataikansoku); // 土曜
+  // 不定期イベントを追加
+  if (NIKOTTO.events[dateStr]) list.push(...NIKOTTO.events[dateStr]);
+  return list;
 }
+
 function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach((b,i) => {
     b.classList.toggle("active", ["calendar","reserve"][i] === name);
@@ -1287,7 +1398,7 @@ function buildReserveList() {
     if (!c.events) continue;
     for (const [dateStr, events] of Object.entries(c.events)) {
       for (const e of events) {
-        if (e.reserve && e.name !== "はじめのいっぽ" && e.name !== "はじめのいっぽ（貸し切り）") {
+        if (e.reserve && !e.name.startsWith("はじめのいっぽ")) {
           list.push({ dateStr, center: c, event: e });
         }
       }
@@ -1356,7 +1467,7 @@ function renderReserve() {
     </div>
     <div class="footer-note" style="margin-top:16px">
       ※ 天候等により変更・中止の場合があります。各センターに直接ご確認ください。<br>
-      ※ データは2026年5〜7月号おたよりに基づきます。
+      ※ データは${DATA_MONTHS}おたよりに基づきます。
     </div>`;
 }
 
@@ -1364,10 +1475,12 @@ function renderReserve() {
 const todayLocal = new Date();
 const pad = n => String(n).padStart(2,"0");
 const todayStr = todayLocal.getFullYear()+"-"+pad(todayLocal.getMonth()+1)+"-"+pad(todayLocal.getDate());
-const minDate = "2026-05-01";
-const maxDate = "2027-03-31";
-const clampedDate = todayStr < minDate ? minDate : todayStr > maxDate ? maxDate : todayStr;
-document.getElementById("pick").value = clampedDate;
+const pickEl = document.getElementById("pick");
+pickEl.min = DATE_MIN;
+pickEl.max = DATE_MAX;
+const clampedDate = todayStr < DATE_MIN ? DATE_MIN : todayStr > DATE_MAX ? DATE_MAX : todayStr;
+pickEl.value = clampedDate;
+document.getElementById("subtitle").textContent = DATA_MONTHS + "おたより掲載情報 ｜ 日付を選ぶとその日の情報が表示されます";
 
 document.getElementById("pick").addEventListener("change", render);
 render();
